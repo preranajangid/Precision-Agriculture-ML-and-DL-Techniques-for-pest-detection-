@@ -77,9 +77,15 @@ def test_model_proc(fn):
     img = img.reshape(1, IMAGE_SIZE, IMAGE_SIZE, 3)
     img = img.astype('float32') / 255.0
     prediction = model.predict(img)
+    confidence = np.max(prediction)
     plant = np.argmax(prediction)
     pests = ["Aphids", "Armyworm", "Beetle", "Bollworm", "Grasshopper", "Mites", "Mosquito", "Sawfly", "Stem_borer"]
-    return pests[plant]
+    #return pests[plant]
+    if confidence < 0.8:  # Threshold for unknown
+        return "Unknown"
+    else:
+        return pests[plant]
+
 
 def test_model():
     global fn
@@ -135,7 +141,7 @@ def convert_grey():
         img3.place(x=880, y=100)
     else:
         update_label("Please Select Image For Conversion....")
-
+'''
 def detect_objects():
     global fn
     if fn:
@@ -148,7 +154,15 @@ def detect_objects():
         img_array = img_array.astype('float32') / 255.0
         prediction = model.predict(img_array)
         pest_classes = ["Aphids", "Armyworm", "Beetle", "Bollworm", "Grasshopper", "Mites", "Mosquito", "Sawfly", "Stem_borer"]
-        detected_pests = [pest_classes[i] for i in np.argmax(prediction, axis=1)]
+        #detected_pests = [pest_classes[i] for i in np.argmax(prediction, axis=1)]
+        confidences = np.max(prediction, axis=1)
+        indices = np.argmax(prediction, axis=1)
+        detected_pests = [] 
+        for idx, conf in zip(indices, confidences):
+            if conf < 0.8:
+                detected_pests.append("Unknown")
+            else:
+                detected_pests.append(pest_classes[idx])
         
         img_cv = cv2.imread(fn)
         img_cv_rgb = cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB)
@@ -172,6 +186,63 @@ def detect_objects():
         img_label = tk.Label(root, image=imgtk)
         img_label.image = imgtk
         img_label.place(x=300, y=100)
+    else:
+        update_label("Please Select Image For Object Detection....")
+'''
+def detect_objects():
+    global fn
+    if fn:
+        model = load_model('pest.h5', compile=False)
+        IMAGE_SIZE = 64
+
+        # Prepare the image
+        img = Image.open(fn)
+        img = img.resize((IMAGE_SIZE, IMAGE_SIZE))
+        img_array = np.array(img).reshape(1, IMAGE_SIZE, IMAGE_SIZE, 3).astype('float32') / 255.0
+
+        # Prediction
+        prediction = model.predict(img_array)
+        pest_classes = ["Aphids", "Armyworm", "Beetle", "Bollworm", "Grasshopper", "Mites", "Mosquito", "Sawfly", "Stem_borer"]
+        confidence = np.max(prediction)
+        index = np.argmax(prediction)
+
+        # Determine detected pest or Unknown
+        if confidence < 0.8:
+            detected_pest = "Unknown"
+        else:
+            detected_pest = pest_classes[index]
+
+        # Load and draw image
+        img_cv = cv2.imread(fn)
+        img_cv_rgb = cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB)
+        (x, y, w, h) = (10, 15, 30, 30)
+
+        if detected_pest != "Unknown":
+            cv2.rectangle(img_cv_rgb, (x, y), (x + w, y + h), (0, 255, 0), 1)
+            cv2.putText(img_cv_rgb, f"{detected_pest}", (x, y - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+        else:
+            cv2.rectangle(img_cv_rgb, (x, y), (x + w, y + h), (0, 255, 0), 1)
+            cv2.putText(img_cv_rgb, "Unknown", (x, y + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+
+        # Resize image
+        img_cv_rgb = cv2.resize(img_cv_rgb, (200, 200))
+        im = Image.fromarray(img_cv_rgb)
+        imgtk = ImageTk.PhotoImage(image=im)
+
+        # Clear previous images and labels
+        for widget in root.winfo_children():
+            if isinstance(widget, tk.Label) and widget != background_label:
+                widget.destroy()
+
+        img_label = tk.Label(root, image=imgtk)
+        img_label.image = imgtk
+        img_label.place(x=300, y=100)
+
+        # Update the status message
+        if detected_pest != "Unknown":
+            update_label(f"Detected: {detected_pest} (Confidence: {confidence:.2f})")
+        else:
+            update_label("No known pest detected.")
     else:
         update_label("Please Select Image For Object Detection....")
 
